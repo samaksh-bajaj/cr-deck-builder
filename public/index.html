@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clash Royale Deck Builder</title>
+<style>
+  :root {
+    --bg: #10131c;
+    --panel: #1a1f2e;
+    --line: #2c3346;
+    --text: #eef1f7;
+    --muted: #99a2b8;
+    --gold: #f2c14e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px 16px 64px;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  main { max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 28px; font-size: 0.95rem; }
+
+  form { display: flex; gap: 8px; flex-wrap: wrap; }
+  input {
+    flex: 1 1 200px; min-width: 0;
+    padding: 12px 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 1rem;
+  }
+  input:focus { outline: 2px solid var(--gold); outline-offset: -1px; }
+  button {
+    padding: 12px 22px;
+    background: var(--gold);
+    border: 0; border-radius: 8px;
+    color: #221a05;
+    font-size: 1rem; font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.55; cursor: progress; }
+
+  #out { margin-top: 32px; }
+  .msg { color: var(--muted); }
+  .err { color: #ff8f8f; }
+
+  .headline { display: flex; justify-content: space-between; align-items: baseline;
+              gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  .score { font-size: 1.5rem; font-weight: 700; color: var(--gold); }
+  .from { color: var(--muted); font-size: 0.9rem; margin-bottom: 20px; }
+
+  .deck {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  .card { text-align: center; }
+  .card img { width: 100%; display: block; }
+  .card span { display: block; font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+  .card.maxed span { color: var(--gold); }
+
+  .copy {
+    display: inline-block; margin-top: 22px;
+    padding: 11px 20px;
+    border: 1px solid var(--line); border-radius: 8px;
+    color: var(--text); text-decoration: none;
+  }
+  .copy:hover { border-color: var(--gold); }
+  .foot { margin-top: 26px; font-size: 0.8rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Clash Royale Deck Builder</h1>
+  <p class="sub">The top players' deck that your card levels suit best.</p>
+
+  <form id="form">
+    <input id="tag" placeholder="#2P0LYQ" aria-label="Player tag" autocomplete="off" required>
+    <button id="go" type="submit">Find my deck</button>
+  </form>
+
+  <div id="out"></div>
+</main>
+
+<script>
+  const form = document.getElementById("form");
+  const input = document.getElementById("tag");
+  const button = document.getElementById("go");
+  const out = document.getElementById("out");
+
+  const escape = (text) => String(text).replace(/[&<>"']/g,
+    (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const tag = input.value.trim();
+    if (!tag) return;
+
+    button.disabled = true;
+    out.innerHTML = '<p class="msg">Looking through the top 100 decks…</p>';
+
+    try {
+      const response = await fetch("/api/best_deck?tag=" + encodeURIComponent(tag));
+      const data = await response.json();
+
+      if (!response.ok) {
+        // 404 means the tag isn't a real player; anything else is upstream.
+        out.innerHTML = '<p class="err">' + (response.status === 404
+          ? "No player with that tag."
+          : escape(data.error || "Something went wrong.")) + "</p>";
+        return;
+      }
+      render(data);
+    } catch (error) {
+      out.innerHTML = '<p class="err">Couldn\'t reach the server.</p>';
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  function render(data) {
+    if (!data.found) {
+      out.innerHTML = '<p class="msg">No decks found.</p>';
+      return;
+    }
+
+    const cards = data.cards.map((card) => `
+      <div class="card${card.level === 16 ? " maxed" : ""}">
+        <img src="${escape(card.icon)}" alt="${escape(card.name)}" loading="lazy">
+        <span>${card.level}</span>
+      </div>`).join("");
+
+    out.innerHTML = `
+      <div class="headline">
+        <strong>${escape(data.player.name)}</strong>
+        <span class="score">${data.score}<span style="opacity:.5">/${data.max_score}</span></span>
+      </div>
+      <p class="from">from rank ${data.source.rank} — ${escape(data.source.name)}</p>
+      <div class="deck">${cards}</div>
+      <a class="copy" href="${escape(data.copy_link)}">Copy deck in game</a>
+      <p class="foot">Top 100 of Path of Legends season ${escape(data.season)},
+         snapshot taken ${escape(data.generated_at.slice(0, 10))}.</p>`;
+  }
+</script>
+</body>
+</html>
