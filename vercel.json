@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/best_deck.py": {
+      "includeFiles": "api/_data/**"
+    }
+  }
+}
