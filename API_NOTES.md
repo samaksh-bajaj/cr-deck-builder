@@ -88,6 +88,16 @@ matching the top player's full ownership instead would discard 80 of 100 decks t
 gain nothing (best score 121 vs 123) while rejecting decks that are genuinely
 playable.
 
+### About a fifth of top decks come back with only 7 cards
+
+21 of the top 100 players' `currentDeck` arrays had 7 entries, not 8. None of
+those 21 contained a champion, against 9% of the complete decks — the missing
+card is the one in the champion slot, hero-upgraded, and the API omits it because
+it has no way to represent a hero.
+
+We can't check whether a player owns a card we can't see, so those decks are
+dropped during the refresh. The cached snapshot holds the ~79 complete ones.
+
 ## Leaderboards
 
 - `/leaderboards` is **not** the ranked ladder — it lists event boards (Merge

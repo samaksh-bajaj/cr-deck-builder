@@ -5,6 +5,7 @@ The leading underscore keeps Vercel from routing this file as an endpoint.
 
 import json
 import os
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -42,8 +43,14 @@ def _load_key():
     )
 
 
-def cr_get(path):
-    """GET a Clash Royale API path (e.g. "/cards") and return the parsed JSON."""
+def cr_get(path, attempts=4):
+    """GET a Clash Royale API path (e.g. "/cards") and return the parsed JSON.
+
+    Retries server-side failures. The proxy intermittently returns a Cloudflare
+    525 (SSL handshake failed) that succeeds on the very next try, which would
+    otherwise kill a 100-request refresh partway through. Client errors (404 for
+    an unknown tag, 403 for a bad key) are real answers, so they're raised at once.
+    """
     request = urllib.request.Request(
         BASE_URL + path,
         headers={
@@ -53,13 +60,20 @@ def cr_get(path):
             "User-Agent": "cr-deck-builder",
         },
     )
-    try:
-        with urllib.request.urlopen(request, timeout=20) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        # The API explains itself in the body; the bare status code doesn't.
-        body = error.read().decode("utf-8", "replace")
-        raise RuntimeError("{} on {}: {}".format(error.code, path, body)) from None
+    for attempt in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            # The API explains itself in the body; the bare status code doesn't.
+            body = error.read().decode("utf-8", "replace")
+            message = "{} on {}: {}".format(error.code, path, body)
+            if error.code < 500 or attempt == attempts:
+                raise RuntimeError(message) from None
+        except urllib.error.URLError as error:
+            if attempt == attempts:
+                raise RuntimeError("{} on {}".format(error, path)) from None
+        time.sleep(attempt)
 
 
 def encode_tag(tag):
@@ -132,3 +146,51 @@ def best_deck(decks, collection):
         if best is None or (score, -deck["rank"]) > (best[0], -best[1]["rank"]):
             best = (score, deck)
     return best
+
+
+DATA_FILE = Path(__file__).resolve().parent / "_data" / "top_decks.json"
+
+# Opening this link on a phone with Clash Royale installed offers to copy the
+# deck. Card ids are separated by semicolons.
+COPY_LINK = "https://link.clashroyale.com/deck/en?deck={}"
+
+
+def load_top_decks():
+    """The cached top-100 snapshot, rebuilt by scripts/refresh_top_decks.py."""
+    return json.loads(DATA_FILE.read_text())
+
+
+def best_deck_for_tag(tag):
+    """The whole feature: a player tag in, a result ready to render out."""
+    player = cr_get("/players/" + encode_tag(tag))
+    collection = collection_by_id(player)
+    snapshot = load_top_decks()
+
+    result = best_deck(snapshot["decks"], collection)
+    if result is None:
+        return {"found": False}
+    score, deck = result
+
+    return {
+        "found": True,
+        "score": score,
+        "max_score": MAX_SCORE,
+        "player": {"name": player["name"], "tag": player["tag"]},
+        "source": {"name": deck["name"], "tag": deck["tag"], "rank": deck["rank"]},
+        "cards": [{
+            "name": card["name"],
+            "icon": card["icon"],
+            "level": normalized_level(collection[card["id"]]),
+        } for card in deck["cards"]],
+        "copy_link": COPY_LINK.format(";".join(str(c["id"]) for c in deck["cards"])),
+        "season": snapshot["season"],
+        "generated_at": snapshot["generated_at"],
+    }
+
+
+if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) < 2:
+        sys.exit("usage: python api/_lib.py '#YOURTAG'")
+    print(json.dumps(best_deck_for_tag(sys.argv[1]), indent=2, ensure_ascii=False))
