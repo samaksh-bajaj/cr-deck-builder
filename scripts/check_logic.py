@@ -75,6 +75,15 @@ def main():
     assert _lib.required_bits(1, 3) == _lib.HERO, "evo+hero card in slot 2"
     assert _lib.required_bits(1, 1) == 0, "evo-only card can't be a hero"
 
+    # Slot 2 is really the champion/hero slot: the two are interchangeable in
+    # game. A champion card has no hero form (maxEvolutionLevel 0), so it demands
+    # nothing beyond owning it — the deck isn't playing a hero at all. This falls
+    # out of keying on capability rather than on the slot alone, and would break
+    # if the check ever assumed "slot 2 means hero".
+    assert _lib.required_bits(1, 0) == 0, "a champion in slot 2 needs no hero"
+    champion_deck = deck(1, eight, {1: 0})
+    assert _lib.deck_score(champion_deck, maxed) == 128, "champion deck is playable"
+
     # Slot 3 takes either, so only an unambiguous card tells us anything.
     assert _lib.required_bits(2, 1) == _lib.EVOLUTION, "slot 3, evolution only"
     assert _lib.required_bits(2, 2) == _lib.HERO, "slot 3, hero only"

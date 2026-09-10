@@ -103,6 +103,14 @@ possible for the card in that slot:
 The cached snapshot preserves card order and stores `maxEvolutionLevel`, and
 `required_bits()` applies the table.
 
+Slot 2 is more precisely the **champion/hero slot**: heroes and champions are
+interchangeable there. All 8 champion cards report `maxEvolutionLevel: 0` and
+have no hero icon, and across the 221 cached decks every champion sits in slot 2
+without exception (12 of 12). So a deck playing a champion demands nothing beyond
+owning the champion itself, which falls out of keying the rule on what a card is
+*capable* of rather than on slot position alone. A check written as "slot 2 means
+hero" would wrongly reject those decks.
+
 The ordering holds up statistically. If slots were arbitrary, capability would be
 spread evenly across them; instead it is heavily concentrated in the first three,
 across the 221 cached decks:
