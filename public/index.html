@@ -109,22 +109,35 @@
 
     try {
       const response = await fetch("/api/best_deck?tag=" + encodeURIComponent(tag));
-      const data = await response.json();
 
-      if (!response.ok) {
-        // 404 means the tag isn't a real player; anything else is upstream.
-        out.innerHTML = '<p class="err">' + (response.status === 404
-          ? "No player with that tag."
-          : escape(data.error || "Something went wrong.")) + "</p>";
+      // Read as text first. A crashed function returns an HTML error page, and
+      // parsing that as JSON would throw and get misreported as "no server".
+      const body = await response.text();
+      let data = null;
+      try { data = JSON.parse(body); } catch (parseError) { /* not JSON */ }
+
+      if (!response.ok || data === null) {
+        out.innerHTML = '<p class="err">' + escape(explain(response, data, body)) + "</p>";
         return;
       }
       render(data);
     } catch (error) {
-      out.innerHTML = '<p class="err">Couldn\'t reach the server.</p>';
+      // Only a genuine network failure reaches here.
+      out.innerHTML = '<p class="err">Couldn\'t reach the server: '
+        + escape(error.message) + "</p>";
     } finally {
       button.disabled = false;
     }
   });
+
+  function explain(response, data, body) {
+    if (response.status === 404 && data) return "No player with that tag.";
+    if (data && data.error) return data.error;
+    // Not JSON, so the platform failed before our code answered. Show enough of
+    // it to act on rather than hiding it behind a generic message.
+    const text = body.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    return "Server error " + response.status + ". " + text.slice(0, 200);
+  }
 
   function render(data) {
     if (!data.found) {
