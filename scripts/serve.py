@@ -39,6 +39,15 @@ class Handler(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     PUBLIC.mkdir(exist_ok=True)
+    try:
+        server = HTTPServer(("", PORT), Handler)
+    except OSError as error:
+        # Otherwise this is a wall of traceback, and an already-running copy
+        # keeps answering with whatever code it started with.
+        sys.exit("Can't listen on port {}: {}\n"
+                 "Another copy is probably still running. Stop it with:\n"
+                 "    lsof -ti:{} | xargs kill".format(PORT, error, PORT))
+
     print("Serving {} on http://localhost:{}".format(PUBLIC, PORT))
     print("Press Ctrl+C to stop.")
-    HTTPServer(("", PORT), Handler).serve_forever()
+    server.serve_forever()

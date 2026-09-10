@@ -105,14 +105,14 @@ The cached snapshot preserves card order and stores `maxEvolutionLevel`, and
 
 The ordering holds up statistically. If slots were arbitrary, capability would be
 spread evenly across them; instead it is heavily concentrated in the first three,
-across the 79 cached decks:
+across the 221 cached decks:
 
-|                   | slots 1-3    | slots 4-8    |
-|-------------------|--------------|--------------|
-| evolution-capable | 180/237 (76%)| 106/395 (27%)|
-| hero-capable      | 78/237 (33%) | 50/395 (13%) |
+|                   | slots 1-3     | slots 4-8      |
+|-------------------|---------------|----------------|
+| evolution-capable | 478/663 (72%) | 289/1105 (26%) |
+| hero-capable      | 242/663 (37%) | 136/1105 (12%) |
 
-78 of 79 decks have an evolution-capable card in slot 1, and 69 of 79 have a
+215 of 221 decks have an evolution-capable card in slot 1, and 188 of 221 have a
 hero-capable card in slot 2.
 
 Slot 3 is left unconstrained when a card can be either, which is the conservative
@@ -120,20 +120,21 @@ choice: guessing wrong there would discard a deck the player can actually field.
 
 ### About a fifth of top decks come back with only 7 cards
 
-21 of the top 100 players' `currentDeck` arrays had 7 entries, not 8. None of
-those 21 contained a champion, against 9% of the complete decks — the missing
+79 of the top 300 players' `currentDeck` arrays had 7 entries, not 8. None of
+them contained a champion, against 9% of the complete decks — the missing
 card is the one in the champion slot, hero-upgraded, and the API omits it because
 it has no way to represent a hero.
 
 We can't check whether a player owns a card we can't see, so those decks are
-dropped during the refresh. The cached snapshot holds the ~79 complete ones.
+dropped during the refresh. The cached snapshot holds the 221 complete ones.
 
 ## Leaderboards
 
 - `/leaderboards` is **not** the ranked ladder — it lists event boards (Merge
   Tactics, Touchdown, 2v2 League, Goblin Queen's Journey).
 - Path of Legends rankings live at:
-  `/locations/global/pathoflegend/{seasonId}/rankings/players?limit=100`
+  `/locations/global/pathoflegend/{seasonId}/rankings/players?limit=300`
+  (one request serves at least 1000; no paging needed for our depth)
   with `seasonId` formatted `YYYY-MM`.
 - **Only completed seasons are published.** On 2026-09-10, `2026-09` returned
   `404 notFound` while `2026-08` returned the full board. The refresh script walks

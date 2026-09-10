@@ -192,7 +192,7 @@ COPY_LINK = "https://link.clashroyale.com/deck/en?deck={}"
 
 
 def load_top_decks():
-    """The cached top-100 snapshot, rebuilt by scripts/refresh_top_decks.py."""
+    """The cached top-ranked snapshot, rebuilt by scripts/refresh_top_decks.py."""
     return json.loads(DATA_FILE.read_text())
 
 
@@ -220,6 +220,7 @@ def best_deck_for_tag(tag):
         } for card in deck["cards"]],
         "copy_link": COPY_LINK.format(";".join(str(c["id"]) for c in deck["cards"])),
         "season": snapshot["season"],
+        "players": snapshot["players"],
         "generated_at": snapshot["generated_at"],
     }
 

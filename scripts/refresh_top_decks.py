@@ -1,4 +1,4 @@
-"""Rebuild the cached top-100 deck snapshot.
+"""Rebuild the cached top-ranked deck snapshot.
 
 Nothing refreshes this automatically. Run it when you want newer data:
 
@@ -7,8 +7,8 @@ Nothing refreshes this automatically. Run it when you want newer data:
     git commit -m "refresh top decks"
     git push
 
-Takes a couple of minutes: the rankings response carries no decks, so each of the
-100 players has to be fetched individually.
+Takes a few minutes: the rankings response carries no decks, so every ranked
+player has to be fetched individually.
 """
 
 import json
@@ -21,7 +21,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "api"))
 import _lib  # noqa: E402
 
 OUTPUT = Path(_lib.REPO_ROOT) / "api" / "_data" / "top_decks.json"
-RANKINGS = "/locations/global/pathoflegend/{}/rankings/players?limit=100"
+
+# How far down the ranked ladder to look. One request covers it; the endpoint
+# serves at least 1000 without paging.
+TOP_PLAYERS = 300
+
+RANKINGS = "/locations/global/pathoflegend/{{}}/rankings/players?limit={}".format(TOP_PLAYERS)
 
 
 def recent_seasons(count=6):
@@ -93,6 +98,8 @@ def main():
     OUTPUT.write_text(json.dumps({
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "season": season,
+        # How deep the ladder went, so the page can say so without hardcoding it.
+        "players": len(players),
         "decks": decks,
     }, indent=1) + "\n")
     print("\nWrote {} decks to {}".format(len(decks), OUTPUT))

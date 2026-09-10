@@ -6,7 +6,7 @@ Enter a player tag, get the one deck you should play.
 
 "Best deck" here means *best for your card levels*, not best in the abstract:
 
-1. Look at the decks of the top 100 Path of Legends (Ranked) players.
+1. Look at the decks of the top 300 Path of Legends (Ranked) players.
 2. Throw out any deck containing a card you don't own, or an evolution / hero you
    haven't unlocked. The API never says which cards are played as an evolution or
    a hero, but deck order does: slot 1 is the evolution slot, slot 2 the hero
@@ -48,10 +48,11 @@ python api/_lib.py '#YOURTAG'      # the whole pipeline, prints JSON
 python scripts/check_logic.py      # scoring tests, no network or key needed
 ```
 
-## Refreshing the top-100 deck data
+## Refreshing the cached deck data
 
 The top players' decks are cached in a committed JSON file. Nothing refreshes it
-automatically — you run it when you want new data:
+automatically — you run it when you want new data. It takes about five minutes,
+since each of the 300 ranked players has to be fetched individually:
 
 ```
 python scripts/refresh_top_decks.py
@@ -66,7 +67,7 @@ git push
 public/index.html             the entire frontend
 api/best_deck.py              GET /api/best_deck?tag=... (serverless function)
 api/_lib.py                   API client, scoring, deck matching
-api/_data/top_decks.json      the cached top-100 snapshot
+api/_data/top_decks.json      the cached top-300 snapshot
 scripts/refresh_top_decks.py  rebuild that snapshot
 scripts/serve.py              run the site locally
 scripts/check_logic.py        tests for the scoring rules
@@ -116,6 +117,6 @@ evidence.
   deduced from card order: slot 1 wants an evolution, slot 2 a hero, slot 3
   either. Where a slot 3 card could be either, nothing is required, since
   guessing wrong would discard a deck you could actually field.
-- **Roughly a fifth of top decks are dropped.** They come back with 7 cards
+- **About a quarter of top decks are dropped.** They come back with 7 cards
   instead of 8, because the champion slot holds a hero the API can't represent.
   A card we can't see is a card we can't check, so those decks are excluded.
