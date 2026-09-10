@@ -8,7 +8,9 @@ Enter a player tag, get the one deck you should play.
 
 1. Look at the decks of the top 100 Path of Legends (Ranked) players.
 2. Throw out any deck containing a card you don't own, or an evolution / hero you
-   haven't unlocked.
+   haven't unlocked. The API never says which cards are played as an evolution or
+   a hero, but deck order does: slot 1 is the evolution slot, slot 2 the hero
+   slot, slot 3 either.
 3. Of what's left, pick the deck with the highest **level score** — the sum of
    *your* levels across its 8 cards.
 4. Ties go to the deck belonging to the higher-ranked player.
@@ -109,9 +111,11 @@ deployment → **Redeploy**.
 Both come from the API rather than from this code; `API_NOTES.md` has the
 evidence.
 
-- **Evolutions and heroes aren't matched.** The API reports what a player *owns*,
-  never what they have equipped, so there's no way to know which evolution a top
-  player's deck actually needs. Only outright card ownership is checked.
+- **Evolution and hero requirements are inferred, not read.** The API reports
+  what a player *owns*, never what they have equipped, so what a deck needs is
+  deduced from card order: slot 1 wants an evolution, slot 2 a hero, slot 3
+  either. Where a slot 3 card could be either, nothing is required, since
+  guessing wrong would discard a deck you could actually field.
 - **Roughly a fifth of top decks are dropped.** They come back with 7 cards
   instead of 8, because the champion slot holds a hero the API can't represent.
   A card we can't see is a card we can't check, so those decks are excluded.

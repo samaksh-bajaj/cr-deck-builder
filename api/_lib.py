@@ -93,6 +93,10 @@ TOP_LEVEL = 16
 DECK_SIZE = 8
 MAX_SCORE = TOP_LEVEL * DECK_SIZE  # 128
 
+# evolutionLevel is a bitmask of what a player has unlocked, not a level.
+EVOLUTION = 1
+HERO = 2
+
 
 def normalized_level(card):
     """The level the game displays for a card, from the API's rarity-relative one.
@@ -102,6 +106,36 @@ def normalized_level(card):
     outscore everything else.
     """
     return card["level"] + (TOP_LEVEL - card["maxLevel"])
+
+
+def required_bits(slot, max_evolution_level):
+    """What a deck's slot demands the player have unlocked, as evolutionLevel bits.
+
+    The API never says which cards are played as an evolution or a hero, but deck
+    order gives it away: `currentDeck` comes back in the order the deck is laid
+    out in game, where the first slot takes an evolution, the second a hero, and
+    the third either. So the slot implies the intent, and maxEvolutionLevel says
+    whether that intent is even possible for the card sitting there.
+
+    Slots 4-8 are ordinary cards and demand nothing.
+    """
+    available = max_evolution_level or 0
+
+    if slot == 0:
+        # An evolution slot, unless this card has no evolution to use.
+        return EVOLUTION if available & EVOLUTION else 0
+    if slot == 1:
+        # A hero slot, same caveat.
+        return HERO if available & HERO else 0
+    if slot == 2:
+        # The wild slot takes either, so only a card capable of exactly one tells
+        # us anything. A card with both is genuinely ambiguous — demand nothing
+        # rather than guess and wrongly discard a playable deck.
+        if available == EVOLUTION:
+            return EVOLUTION
+        if available == HERO:
+            return HERO
+    return 0
 
 
 def collection_by_id(player):
@@ -116,16 +150,18 @@ def collection_by_id(player):
 def deck_score(deck, collection):
     """Sum the player's levels across a deck's 8 cards.
 
-    Returns None if the deck is unplayable for them, i.e. they're missing one of
-    the cards. Evolutions and heroes are deliberately not checked: the API only
-    reports what a player *owns*, never what they have equipped, so there's no way
-    to know which evolution or hero a top player's deck actually depends on.
-    See API_NOTES.md.
+    Returns None if the deck is unplayable for them: they're missing one of the
+    cards, or they lack the evolution or hero its first three slots imply. See
+    required_bits() for how those are inferred, and API_NOTES.md for why deck
+    order is the only signal available.
     """
     total = 0
-    for card in deck["cards"]:
+    for slot, card in enumerate(deck["cards"]):
         owned = collection.get(card["id"])
         if owned is None:
+            return None
+        needed = required_bits(slot, card.get("maxEvolutionLevel"))
+        if (owned.get("evolutionLevel", 0) & needed) != needed:
             return None
         total += normalized_level(owned)
     return total

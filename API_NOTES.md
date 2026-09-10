@@ -81,12 +81,42 @@ cards flagged, one had all 8.
 So there is **no way to tell what a player actually has equipped.** The API only
 ever tells us what they own.
 
-Consequence for this project: we cannot know which evolution or hero a top
-player's deck depends on, so we don't try. A deck is skipped only when the player
-is missing one of the 8 cards outright. Measured on a real 122-card account,
-matching the top player's full ownership instead would discard 80 of 100 decks to
-gain nothing (best score 121 vs 123) while rejecting decks that are genuinely
-playable.
+### Deck order reveals what the API won't say
+
+`currentDeck` comes back in the order the deck is laid out in game, confirmed by
+comparing against the client. That layout is fixed: **slot 1 takes an evolution,
+slot 2 takes a hero, slot 3 takes either.** So position implies intent even
+though no field states it, and `maxEvolutionLevel` says whether that intent is
+possible for the card in that slot:
+
+| slot | card can be    | inferred requirement |
+|------|----------------|----------------------|
+| 1    | evolution      | evolution            |
+| 1    | hero only      | nothing              |
+| 2    | hero           | hero                 |
+| 2    | evolution only | nothing              |
+| 3    | evolution only | evolution            |
+| 3    | hero only      | hero                 |
+| 3    | both           | nothing (ambiguous)  |
+| 4-8  | anything       | nothing              |
+
+The cached snapshot preserves card order and stores `maxEvolutionLevel`, and
+`required_bits()` applies the table.
+
+The ordering holds up statistically. If slots were arbitrary, capability would be
+spread evenly across them; instead it is heavily concentrated in the first three,
+across the 79 cached decks:
+
+|                   | slots 1-3    | slots 4-8    |
+|-------------------|--------------|--------------|
+| evolution-capable | 180/237 (76%)| 106/395 (27%)|
+| hero-capable      | 78/237 (33%) | 50/395 (13%) |
+
+78 of 79 decks have an evolution-capable card in slot 1, and 69 of 79 have a
+hero-capable card in slot 2.
+
+Slot 3 is left unconstrained when a card can be either, which is the conservative
+choice: guessing wrong there would discard a deck the player can actually field.
 
 ### About a fifth of top decks come back with only 7 cards
 

@@ -76,10 +76,14 @@ def main():
             "tag": entry["tag"],
             # Only what's needed to match and display. The top player's own card
             # levels are irrelevant: scoring always uses the requesting player's.
+            # Card order is preserved and load-bearing: the first slot is an
+            # evolution, the second a hero, the third either, and
+            # maxEvolutionLevel says which of those a card can actually be.
             "cards": [{
                 "id": card["id"],
                 "name": card["name"],
                 "icon": card.get("iconUrls", {}).get("medium", ""),
+                "maxEvolutionLevel": card.get("maxEvolutionLevel", 0),
             } for card in deck],
         })
         if position % 25 == 0:

@@ -15,9 +15,12 @@ def card(id, level, max_level):
     return {"id": id, "name": "card%d" % id, "level": level, "maxLevel": max_level}
 
 
-def deck(rank, ids):
+def deck(rank, ids, max_evos=None):
+    max_evos = max_evos or {}
     return {"rank": rank, "name": "p%d" % rank, "tag": "#P%d" % rank,
-            "cards": [{"id": i, "name": "card%d" % i} for i in ids]}
+            "cards": [{"id": i, "name": "card%d" % i,
+                       "maxEvolutionLevel": max_evos.get(slot, 0)}
+                      for slot, i in enumerate(ids)]}
 
 
 def main():
@@ -59,6 +62,52 @@ def main():
     # No playable deck at all.
     assert _lib.best_deck([deck(1, eight)], {}) is None, "empty collection"
     assert _lib.best_deck([], maxed) is None, "no decks"
+
+    # --- what each deck slot demands -------------------------------------
+    # Slot 1 is the evolution slot, but only if the card has an evolution.
+    assert _lib.required_bits(0, 1) == _lib.EVOLUTION, "evo-only card in slot 1"
+    assert _lib.required_bits(0, 3) == _lib.EVOLUTION, "evo+hero card in slot 1"
+    assert _lib.required_bits(0, 2) == 0, "hero-only card can't be an evolution"
+    assert _lib.required_bits(0, 0) == 0, "plain card demands nothing"
+
+    # Slot 2 is the hero slot, on the same terms.
+    assert _lib.required_bits(1, 2) == _lib.HERO, "hero-only card in slot 2"
+    assert _lib.required_bits(1, 3) == _lib.HERO, "evo+hero card in slot 2"
+    assert _lib.required_bits(1, 1) == 0, "evo-only card can't be a hero"
+
+    # Slot 3 takes either, so only an unambiguous card tells us anything.
+    assert _lib.required_bits(2, 1) == _lib.EVOLUTION, "slot 3, evolution only"
+    assert _lib.required_bits(2, 2) == _lib.HERO, "slot 3, hero only"
+    assert _lib.required_bits(2, 3) == 0, "slot 3 with both is ambiguous"
+
+    # Slots 4-8 are ordinary cards whatever they're capable of.
+    for slot in range(3, 8):
+        assert _lib.required_bits(slot, 3) == 0, "slot %d demands nothing" % (slot + 1)
+
+    # --- decks are filtered on those demands -------------------------------
+    # Slot 1 needs an evolution the player doesn't have.
+    needs_evo = deck(1, eight, {0: 1})
+    assert _lib.deck_score(needs_evo, maxed) is None, "no evolution unlocked"
+
+    with_evo = dict(maxed)
+    with_evo[1] = dict(maxed[1], evolutionLevel=_lib.EVOLUTION)
+    assert _lib.deck_score(needs_evo, with_evo) == 128, "evolution unlocked"
+
+    # The hero bit is not the evolution bit: owning one doesn't cover the other.
+    needs_hero = deck(1, eight, {1: 2})
+    with_hero = dict(maxed)
+    with_hero[2] = dict(maxed[2], evolutionLevel=_lib.HERO)
+    assert _lib.deck_score(needs_hero, maxed) is None, "no hero unlocked"
+    assert _lib.deck_score(needs_hero, with_evo) is None, "evolution is not a hero"
+    assert _lib.deck_score(needs_hero, with_hero) == 128, "hero unlocked"
+
+    # Owning both satisfies either demand.
+    both = dict(maxed)
+    both[1] = dict(maxed[1], evolutionLevel=_lib.EVOLUTION | _lib.HERO)
+    assert _lib.deck_score(deck(1, eight, {0: 3}), both) == 128, "owns both"
+
+    # A hero-capable card outside the first three slots demands nothing.
+    assert _lib.deck_score(deck(1, eight, {5: 3}), maxed) == 128, "slot 6 is ordinary"
 
     print("all checks passed")
 
