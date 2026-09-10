@@ -70,3 +70,65 @@ def encode_tag(tag):
     """
     tag = tag.strip().lstrip("#").upper().replace("O", "0")
     return urllib.parse.quote("#" + tag)
+
+
+# A maxed card of any rarity displays as level 16 (maxLevel is 16 for commons, 14
+# rare, 11 epic, 8 legendary, 6 champion), so levels are normalized against 16
+# before being compared. See API_NOTES.md.
+TOP_LEVEL = 16
+DECK_SIZE = 8
+MAX_SCORE = TOP_LEVEL * DECK_SIZE  # 128
+
+
+def normalized_level(card):
+    """The level the game displays for a card, from the API's rarity-relative one.
+
+    The API reports a maxed Legendary as level 8 and a maxed Common as level 16;
+    both show as 16 in game. Without this, decks built from commons would always
+    outscore everything else.
+    """
+    return card["level"] + (TOP_LEVEL - card["maxLevel"])
+
+
+def collection_by_id(player):
+    """Index a player's owned cards by card id.
+
+    Cards the player has never unlocked simply aren't in the list, so a missing
+    key means "doesn't own it".
+    """
+    return {card["id"]: card for card in player.get("cards", [])}
+
+
+def deck_score(deck, collection):
+    """Sum the player's levels across a deck's 8 cards.
+
+    Returns None if the deck is unplayable for them, i.e. they're missing one of
+    the cards. Evolutions and heroes are deliberately not checked: the API only
+    reports what a player *owns*, never what they have equipped, so there's no way
+    to know which evolution or hero a top player's deck actually depends on.
+    See API_NOTES.md.
+    """
+    total = 0
+    for card in deck["cards"]:
+        owned = collection.get(card["id"])
+        if owned is None:
+            return None
+        total += normalized_level(owned)
+    return total
+
+
+def best_deck(decks, collection):
+    """Pick the highest-scoring playable deck, or None if none are playable.
+
+    Ties go to the deck belonging to the higher-ranked player, i.e. the lower
+    rank number. Returns (score, deck).
+    """
+    best = None
+    for deck in decks:
+        score = deck_score(deck, collection)
+        if score is None:
+            continue
+        # Higher score wins; on a tie, the smaller rank number wins.
+        if best is None or (score, -deck["rank"]) > (best[0], -best[1]["rank"]):
+            best = (score, deck)
+    return best

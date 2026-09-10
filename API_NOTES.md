@@ -29,36 +29,64 @@ A maxed card of any rarity displays as **level 16** in game, so:
 
 That's why `TOP_LEVEL = 16` and a perfect 8-card deck scores 128.
 
-## Evolutions
+## Evolutions and heroes: `evolutionLevel` is a bitmask, not a level
 
-- Card definitions carry `maxEvolutionLevel` (1, 2 or 3 — evolutions now have
-  multiple levels).
-- A card in `currentDeck` carries `evolutionLevel` **only when it is slotted as an
-  evolution**. Absent means "played normally".
-- A card in the player's `cards` collection carries `evolutionLevel` when the
-  player owns that evolution, at the level they own.
+This is the least obvious thing in the whole API. `evolutionLevel` and
+`maxEvolutionLevel` look like levels but are **bit flags**:
 
-So "does this player have the evolution this deck needs" is:
-`player_card.get("evolutionLevel", 0) >= deck_card.get("evolutionLevel", 0)`.
+| bit | value | meaning            |
+|-----|-------|--------------------|
+| 1   | 1     | evolution          |
+| 2   | 2     | hero               |
 
-## Heroes — not exposed
+So `evolutionLevel` reads:
 
-The game has heroes, and `/cards` card definitions include an
-`iconUrls.heroMedium` image. But **no player, deck, or collection field anywhere
-in the API indicates hero status or hero level.**
+| value   | the player has unlocked  |
+|---------|--------------------------|
+| absent  | neither                  |
+| 1       | evolution only           |
+| 2       | hero only                |
+| 3       | both                     |
 
-Checked against the top 25 Path of Legends players; the complete set of keys on
-every deck card and every collection card is:
+and `maxEvolutionLevel` says which of the two **exist in the game** for that card.
 
-    count, elixirCost, evolutionLevel, iconUrls, id, level,
-    maxEvolutionLevel, maxLevel, name, rarity, starLevel
+Verified two independent ways:
 
-There is no `heroLevel`, no `isHero`, no `maxHeroLevel`. A hero-upgraded card is
-indistinguishable from the ordinary card in API responses.
+1. Across all 123 cards in `/cards`, `maxEvolutionLevel` matches exactly which
+   icons the card has, with zero exceptions:
 
-Consequence: the "skip decks where the player lacks the hero" rule cannot be
-implemented yet. `deck_score()` has a marked hook where the check goes once
-Supercell exposes the field.
+   | maxEvolutionLevel | `evolutionMedium` | `heroMedium` | cards |
+   |-------------------|-------------------|--------------|-------|
+   | 0                 | no                | no           | 68    |
+   | 1                 | yes               | no           | 38    |
+   | 2                 | no                | yes          | 13    |
+   | 3                 | yes               | yes          | 4     |
+
+2. Across 3,670 card records from 30 top players' collections, no card ever owns
+   a bit its `maxEvolutionLevel` lacks. Critically, `maxEvolutionLevel: 2`
+   (hero-only cards like Giant, Balloon, Mini P.E.K.K.A) **never** appears with
+   `evolutionLevel: 1` — impossible under a bitmask, routine if it were a level.
+
+Reading it as a level is wrong in a way that silently corrupts results: a
+hero-only card at `evolutionLevel: 2` would look like "evolution level 2".
+
+### `currentDeck` reports ownership, not what's equipped
+
+In game there are three slots (first evolution, second hero, third either), so at
+most 3 cards in a deck can be special. But `currentDeck` cards carry
+`evolutionLevel` values identical to the same card in the player's `cards`
+collection — 155 of 155 comparisons matched, and 16 of 20 top players had 4+ deck
+cards flagged, one had all 8.
+
+So there is **no way to tell what a player actually has equipped.** The API only
+ever tells us what they own.
+
+Consequence for this project: we cannot know which evolution or hero a top
+player's deck depends on, so we don't try. A deck is skipped only when the player
+is missing one of the 8 cards outright. Measured on a real 122-card account,
+matching the top player's full ownership instead would discard 80 of 100 decks to
+gain nothing (best score 121 vs 123) while rejecting decks that are genuinely
+playable.
 
 ## Leaderboards
 
