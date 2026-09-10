@@ -58,6 +58,26 @@ def fetch_rankings():
     raise SystemExit("No Path of Legends season returned any players.")
 
 
+def _card(card):
+    """The fields needed to match and draw one card of a deck.
+
+    Both alternate arts are kept when they exist: which one to draw depends on
+    the slot and on the requesting player's unlocks, decided at request time.
+    """
+    icons = card.get("iconUrls", {})
+    kept = {
+        "id": card["id"],
+        "name": card["name"],
+        "icon": icons.get("medium", ""),
+        "maxEvolutionLevel": card.get("maxEvolutionLevel", 0),
+    }
+    if icons.get("evolutionMedium"):
+        kept["evolutionIcon"] = icons["evolutionMedium"]
+    if icons.get("heroMedium"):
+        kept["heroIcon"] = icons["heroMedium"]
+    return kept
+
+
 def main():
     print("Finding the newest published season...")
     season, players = fetch_rankings()
@@ -84,12 +104,7 @@ def main():
             # Card order is preserved and load-bearing: the first slot is an
             # evolution, the second a hero, the third either, and
             # maxEvolutionLevel says which of those a card can actually be.
-            "cards": [{
-                "id": card["id"],
-                "name": card["name"],
-                "icon": card.get("iconUrls", {}).get("medium", ""),
-                "maxEvolutionLevel": card.get("maxEvolutionLevel", 0),
-            } for card in deck],
+            "cards": [_card(card) for card in deck],
         })
         if position % 25 == 0:
             print("  {}/{}".format(position, len(players)))

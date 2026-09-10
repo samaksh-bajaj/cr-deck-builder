@@ -138,6 +138,38 @@ def required_bits(slot, max_evolution_level):
     return 0
 
 
+def played_as(slot, max_evolution_level, owned_bits):
+    """Which form a slot's card is played in: EVOLUTION, HERO, or 0 for plain.
+
+    This is what to *show*, where required_bits() is what to *demand*. They
+    differ only in the third slot: the requirement stays silent when a card could
+    be either form, but for display the player's own unlocks settle it.
+    """
+    available = max_evolution_level or 0
+
+    if slot == 0:
+        return EVOLUTION if available & EVOLUTION else 0
+    if slot == 1:
+        # Champions live here too and have no hero form, so they stay plain.
+        return HERO if available & HERO else 0
+    if slot == 2:
+        # Whichever the player actually has; evolution wins if they have both.
+        if available & owned_bits & EVOLUTION:
+            return EVOLUTION
+        if available & owned_bits & HERO:
+            return HERO
+    return 0
+
+
+def card_art(card, form):
+    """The icon for a card in a given form, falling back to the plain art."""
+    if form == EVOLUTION:
+        return card.get("evolutionIcon") or card["icon"]
+    if form == HERO:
+        return card.get("heroIcon") or card["icon"]
+    return card["icon"]
+
+
 def collection_by_id(player):
     """Index a player's owned cards by card id.
 
@@ -196,6 +228,24 @@ def load_top_decks():
     return json.loads(DATA_FILE.read_text())
 
 
+FORM_NAMES = {EVOLUTION: "evolution", HERO: "hero"}
+
+
+def _rendered_cards(deck, collection):
+    """The deck's 8 cards with the player's levels and the right art for each."""
+    rendered = []
+    for slot, card in enumerate(deck["cards"]):
+        owned = collection[card["id"]]
+        form = played_as(slot, card.get("maxEvolutionLevel"), owned.get("evolutionLevel", 0))
+        rendered.append({
+            "name": card["name"],
+            "icon": card_art(card, form),
+            "level": normalized_level(owned),
+            "form": FORM_NAMES.get(form, ""),
+        })
+    return rendered
+
+
 def best_deck_for_tag(tag):
     """The whole feature: a player tag in, a result ready to render out."""
     player = cr_get("/players/" + encode_tag(tag))
@@ -213,11 +263,7 @@ def best_deck_for_tag(tag):
         "max_score": MAX_SCORE,
         "player": {"name": player["name"], "tag": player["tag"]},
         "source": {"name": deck["name"], "tag": deck["tag"], "rank": deck["rank"]},
-        "cards": [{
-            "name": card["name"],
-            "icon": card["icon"],
-            "level": normalized_level(collection[card["id"]]),
-        } for card in deck["cards"]],
+        "cards": _rendered_cards(deck, collection),
         "copy_link": COPY_LINK.format(";".join(str(c["id"]) for c in deck["cards"])),
         "season": snapshot["season"],
         "players": snapshot["players"],

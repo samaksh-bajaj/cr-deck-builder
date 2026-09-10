@@ -126,6 +126,26 @@ hero-capable card in slot 2.
 Slot 3 is left unconstrained when a card can be either, which is the conservative
 choice: guessing wrong there would discard a deck the player can actually field.
 
+### Card art follows the slot
+
+Cards carry up to three images: `medium`, `evolutionMedium` and `heroMedium`,
+all present on the entries inside `currentDeck`, so no extra `/cards` request is
+needed to cache them.
+
+Which one to draw follows the same slot logic, resolved per requesting player:
+
+| slot | art shown                                                     |
+|------|---------------------------------------------------------------|
+| 1    | evolution, if the card has one                                |
+| 2    | hero, if the card has one (champions keep their own art)      |
+| 3    | whichever form the player has unlocked; evolution if both     |
+| 4-8  | plain, even if the card has an evolution the player owns      |
+
+`played_as()` decides the form and `card_art()` picks the URL, falling back to
+plain art if the expected image is missing. This is deliberately *not* the same
+as `required_bits()`: the requirement stays silent on an ambiguous slot 3 card,
+while the art has to commit to something, and the player's own unlocks settle it.
+
 ### About a fifth of top decks come back with only 7 cards
 
 79 of the top 300 players' `currentDeck` arrays had 7 entries, not 8. None of

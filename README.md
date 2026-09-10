@@ -19,6 +19,10 @@ Enter a player tag, get the one deck you should play.
 Levels are normalized to what the game displays, so a maxed Legendary and a maxed
 Common both count as 14. Without that, decks made of commons would always win.
 
+Cards are drawn in the form they're played in: evolution art in the first slot,
+hero art in the second, and in the third whichever form you've unlocked
+(evolution if you have both).
+
 Tower troops are ignored entirely — not matched, not scored.
 
 ## Setup

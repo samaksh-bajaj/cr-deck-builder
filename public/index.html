@@ -134,7 +134,8 @@
 
     const cards = data.cards.map((card) => `
       <div class="card${card.level === 16 ? " maxed" : ""}">
-        <img src="${escape(card.icon)}" alt="${escape(card.name)}" loading="lazy">
+        <img src="${escape(card.icon)}" loading="lazy"
+             alt="${escape(card.form ? card.form + " " + card.name : card.name)}">
         <span>${card.level}</span>
       </div>`).join("");
 

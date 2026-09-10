@@ -118,6 +118,39 @@ def main():
     # A hero-capable card outside the first three slots demands nothing.
     assert _lib.deck_score(deck(1, eight, {5: 3}), maxed) == 128, "slot 6 is ordinary"
 
+    # --- which art each slot is drawn in ------------------------------------
+    EVO, HERO = _lib.EVOLUTION, _lib.HERO
+    both = EVO | HERO
+
+    # Slot 1 is evolution art whenever the card has an evolution.
+    assert _lib.played_as(0, 1, EVO) == EVO, "slot 1 evolution"
+    assert _lib.played_as(0, 3, both) == EVO, "slot 1 prefers evolution"
+    assert _lib.played_as(0, 0, 0) == 0, "slot 1 plain card stays plain"
+
+    # Slot 2 is hero art, except champions, which have no hero form.
+    assert _lib.played_as(1, 2, HERO) == HERO, "slot 2 hero"
+    assert _lib.played_as(1, 0, 0) == 0, "champion in slot 2 keeps its own art"
+
+    # Slot 3 follows what the player has unlocked, evolution first.
+    assert _lib.played_as(2, 3, both) == EVO, "slot 3 with both shows evolution"
+    assert _lib.played_as(2, 3, EVO) == EVO, "slot 3 evolution only"
+    assert _lib.played_as(2, 3, HERO) == HERO, "slot 3 hero only"
+    assert _lib.played_as(2, 3, 0) == 0, "slot 3 with neither stays plain"
+    # Ownership alone isn't enough; the card must offer that form.
+    assert _lib.played_as(2, 1, both) == EVO, "slot 3 card has no hero form"
+    assert _lib.played_as(2, 2, both) == HERO, "slot 3 card has no evolution"
+
+    # Slots 4-8 are always plain, whatever the player owns.
+    for slot in range(3, 8):
+        assert _lib.played_as(slot, 3, both) == 0, "slot %d is plain" % (slot + 1)
+
+    # The art actually swaps, and falls back when a URL is absent.
+    art = {"icon": "plain.png", "evolutionIcon": "evo.png", "heroIcon": "hero.png"}
+    assert _lib.card_art(art, EVO) == "evo.png"
+    assert _lib.card_art(art, HERO) == "hero.png"
+    assert _lib.card_art(art, 0) == "plain.png"
+    assert _lib.card_art({"icon": "plain.png"}, EVO) == "plain.png", "missing art falls back"
+
     print("all checks passed")
 
 
