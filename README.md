@@ -5,6 +5,8 @@
 Not the best deck in the abstract — the best deck *for your card levels*, chosen
 from what the top 300 ranked players are running.
 
+**[Try it →](https://cr-deck-builder.vercel.app)**
+
 <p align="center">
   <img src="docs/screenshot.png" alt="The deck builder showing a chosen deck, with evolution and hero art" width="620">
 </p>
