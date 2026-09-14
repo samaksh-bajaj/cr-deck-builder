@@ -1,7 +1,8 @@
 # Verified API facts
 
-Everything here was confirmed against live responses with `scripts/probe.py`
-on 2026-09-10, not taken from documentation.
+Everything here was confirmed against live responses, not taken from
+documentation. `scripts/verify_api.py` re-checks every claim on this page and
+fails loudly if the API has changed underneath us.
 
 ## Access
 
@@ -105,22 +106,22 @@ The cached snapshot preserves card order and stores `maxEvolutionLevel`, and
 
 Slot 2 is more precisely the **champion/hero slot**: heroes and champions are
 interchangeable there. All 8 champion cards report `maxEvolutionLevel: 0` and
-have no hero icon, and across the 221 cached decks every champion sits in slot 2
-without exception (12 of 12). So a deck playing a champion demands nothing beyond
+have no hero icon, and across the 223 cached decks every champion sits in slot 2
+without exception (14 of 14). So a deck playing a champion demands nothing beyond
 owning the champion itself, which falls out of keying the rule on what a card is
 *capable* of rather than on slot position alone. A check written as "slot 2 means
 hero" would wrongly reject those decks.
 
 The ordering holds up statistically. If slots were arbitrary, capability would be
 spread evenly across them; instead it is heavily concentrated in the first three,
-across the 221 cached decks:
+across the 223 cached decks:
 
 |                   | slots 1-3     | slots 4-8      |
 |-------------------|---------------|----------------|
-| evolution-capable | 478/663 (72%) | 289/1105 (26%) |
-| hero-capable      | 242/663 (37%) | 136/1105 (12%) |
+| evolution-capable | 483/669 (72%) | 289/1115 (26%) |
+| hero-capable      | 241/669 (36%) | 138/1115 (12%) |
 
-215 of 221 decks have an evolution-capable card in slot 1, and 188 of 221 have a
+217 of 223 decks have an evolution-capable card in slot 1, and 188 of 223 have a
 hero-capable card in slot 2.
 
 Slot 3 is left unconstrained when a card can be either, which is the conservative
@@ -148,13 +149,13 @@ while the art has to commit to something, and the player's own unlocks settle it
 
 ### About a fifth of top decks come back with only 7 cards
 
-79 of the top 300 players' `currentDeck` arrays had 7 entries, not 8. None of
+77 of the top 300 players' `currentDeck` arrays had 7 entries, not 8. None of
 them contained a champion, against 9% of the complete decks — the missing
 card is the one in the champion slot, hero-upgraded, and the API omits it because
 it has no way to represent a hero.
 
 We can't check whether a player owns a card we can't see, so those decks are
-dropped during the refresh. The cached snapshot holds the 221 complete ones.
+dropped during the refresh. The cached snapshot holds the 223 complete ones.
 
 ## Leaderboards
 

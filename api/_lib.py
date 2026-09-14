@@ -1,10 +1,15 @@
 """Clash Royale API access and deck-picking logic.
 
 The leading underscore keeps Vercel from routing this file as an endpoint.
+
+The interesting parts are the slot rules further down: the API never states which
+cards a deck plays as an evolution or a hero, so both are inferred from deck
+order. API_NOTES.md records the evidence for that and for everything else here.
 """
 
 import json
 import os
+import sys
 import time
 import urllib.error
 import urllib.parse
@@ -16,7 +21,28 @@ from pathlib import Path
 BASE_URL = "https://proxy.royaleapi.dev/v1"
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+DATA_FILE = Path(__file__).resolve().parent / "_data" / "top_decks.json"
 
+# Opening this link on a phone with Clash Royale installed offers to copy the
+# deck. Card ids are separated by semicolons.
+COPY_LINK = "https://link.clashroyale.com/deck/en?deck={}"
+
+# A maxed card of any rarity displays as level 16 (maxLevel is 16 for commons, 14
+# rare, 11 epic, 8 legendary, 6 champion), so levels are normalized against 16
+# before being compared.
+TOP_LEVEL = 16
+DECK_SIZE = 8
+MAX_SCORE = TOP_LEVEL * DECK_SIZE  # 128
+
+# evolutionLevel is a bitmask of what a player has unlocked, not a level.
+EVOLUTION = 1
+HERO = 2
+FORM_NAMES = {EVOLUTION: "evolution", HERO: "hero"}
+
+
+# ---------------------------------------------------------------------------
+# Talking to the API
+# ---------------------------------------------------------------------------
 
 def _load_key():
     """Return the API key from the environment, falling back to .env locally.
@@ -48,7 +74,7 @@ def cr_get(path, attempts=4):
 
     Retries server-side failures. The proxy intermittently returns a Cloudflare
     525 (SSL handshake failed) that succeeds on the very next try, which would
-    otherwise kill a 100-request refresh partway through. Client errors (404 for
+    otherwise kill a 300-request refresh partway through. Client errors (404 for
     an unknown tag, 403 for a bad key) are real answers, so they're raised at once.
     """
     request = urllib.request.Request(
@@ -86,17 +112,9 @@ def encode_tag(tag):
     return urllib.parse.quote("#" + tag)
 
 
-# A maxed card of any rarity displays as level 16 (maxLevel is 16 for commons, 14
-# rare, 11 epic, 8 legendary, 6 champion), so levels are normalized against 16
-# before being compared. See API_NOTES.md.
-TOP_LEVEL = 16
-DECK_SIZE = 8
-MAX_SCORE = TOP_LEVEL * DECK_SIZE  # 128
-
-# evolutionLevel is a bitmask of what a player has unlocked, not a level.
-EVOLUTION = 1
-HERO = 2
-
+# ---------------------------------------------------------------------------
+# Card levels
+# ---------------------------------------------------------------------------
 
 def normalized_level(card):
     """The level the game displays for a card, from the API's rarity-relative one.
@@ -108,14 +126,27 @@ def normalized_level(card):
     return card["level"] + (TOP_LEVEL - card["maxLevel"])
 
 
+def collection_by_id(player):
+    """Index a player's owned cards by card id.
+
+    Cards the player has never unlocked simply aren't in the list, so a missing
+    key means "doesn't own it".
+    """
+    return {card["id"]: card for card in player.get("cards", [])}
+
+
+# ---------------------------------------------------------------------------
+# Evolution and hero slots
+#
+# Nothing in the API marks a card as being played as an evolution or a hero.
+# Deck order is the only signal: currentDeck comes back in the order the deck is
+# laid out in game, where slot 1 takes an evolution, slot 2 a champion or hero,
+# and slot 3 either. maxEvolutionLevel then says whether that is even possible
+# for the card sitting there.
+# ---------------------------------------------------------------------------
+
 def required_bits(slot, max_evolution_level):
     """What a deck's slot demands the player have unlocked, as evolutionLevel bits.
-
-    The API never says which cards are played as an evolution or a hero, but deck
-    order gives it away: `currentDeck` comes back in the order the deck is laid
-    out in game, where the first slot takes an evolution, the second a hero, and
-    the third either. So the slot implies the intent, and maxEvolutionLevel says
-    whether that intent is even possible for the card sitting there.
 
     Slots 4-8 are ordinary cards and demand nothing.
     """
@@ -125,7 +156,8 @@ def required_bits(slot, max_evolution_level):
         # An evolution slot, unless this card has no evolution to use.
         return EVOLUTION if available & EVOLUTION else 0
     if slot == 1:
-        # A hero slot, same caveat.
+        # A hero slot, same caveat. Champions live here too and have no hero
+        # form, so they demand nothing beyond owning the champion.
         return HERO if available & HERO else 0
     if slot == 2:
         # The wild slot takes either, so only a card capable of exactly one tells
@@ -143,14 +175,13 @@ def played_as(slot, max_evolution_level, owned_bits):
 
     This is what to *show*, where required_bits() is what to *demand*. They
     differ only in the third slot: the requirement stays silent when a card could
-    be either form, but for display the player's own unlocks settle it.
+    be either form, but the art has to commit, so the player's unlocks settle it.
     """
     available = max_evolution_level or 0
 
     if slot == 0:
         return EVOLUTION if available & EVOLUTION else 0
     if slot == 1:
-        # Champions live here too and have no hero form, so they stay plain.
         return HERO if available & HERO else 0
     if slot == 2:
         # Whichever the player actually has; evolution wins if they have both.
@@ -170,22 +201,15 @@ def card_art(card, form):
     return card["icon"]
 
 
-def collection_by_id(player):
-    """Index a player's owned cards by card id.
-
-    Cards the player has never unlocked simply aren't in the list, so a missing
-    key means "doesn't own it".
-    """
-    return {card["id"]: card for card in player.get("cards", [])}
-
+# ---------------------------------------------------------------------------
+# Choosing a deck
+# ---------------------------------------------------------------------------
 
 def deck_score(deck, collection):
     """Sum the player's levels across a deck's 8 cards.
 
     Returns None if the deck is unplayable for them: they're missing one of the
-    cards, or they lack the evolution or hero its first three slots imply. See
-    required_bits() for how those are inferred, and API_NOTES.md for why deck
-    order is the only signal available.
+    cards, or they lack the evolution or hero its first three slots imply.
     """
     total = 0
     for slot, card in enumerate(deck["cards"]):
@@ -216,19 +240,13 @@ def best_deck(decks, collection):
     return best
 
 
-DATA_FILE = Path(__file__).resolve().parent / "_data" / "top_decks.json"
-
-# Opening this link on a phone with Clash Royale installed offers to copy the
-# deck. Card ids are separated by semicolons.
-COPY_LINK = "https://link.clashroyale.com/deck/en?deck={}"
-
+# ---------------------------------------------------------------------------
+# Putting it together
+# ---------------------------------------------------------------------------
 
 def load_top_decks():
     """The cached top-ranked snapshot, rebuilt by scripts/refresh_top_decks.py."""
     return json.loads(DATA_FILE.read_text())
-
-
-FORM_NAMES = {EVOLUTION: "evolution", HERO: "hero"}
 
 
 def _rendered_cards(deck, collection):
@@ -236,7 +254,8 @@ def _rendered_cards(deck, collection):
     rendered = []
     for slot, card in enumerate(deck["cards"]):
         owned = collection[card["id"]]
-        form = played_as(slot, card.get("maxEvolutionLevel"), owned.get("evolutionLevel", 0))
+        form = played_as(slot, card.get("maxEvolutionLevel"),
+                         owned.get("evolutionLevel", 0))
         rendered.append({
             "name": card["name"],
             "icon": card_art(card, form),
@@ -272,8 +291,6 @@ def best_deck_for_tag(tag):
 
 
 if __name__ == "__main__":
-    import sys
-
     if len(sys.argv) < 2:
         sys.exit("usage: python api/_lib.py '#YOURTAG'")
     print(json.dumps(best_deck_for_tag(sys.argv[1]), indent=2, ensure_ascii=False))

@@ -53,6 +53,7 @@
   .headline { display: flex; justify-content: space-between; align-items: baseline;
               gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
   .score { font-size: 1.5rem; font-weight: 700; color: var(--gold); }
+  .score .of { opacity: 0.5; }
   .from { color: var(--muted); font-size: 0.9rem; margin-bottom: 20px; }
 
   .deck {
@@ -96,7 +97,10 @@
   const button = document.getElementById("go");
   const out = document.getElementById("out");
 
-  const escape = (text) => String(text).replace(/[&<>"']/g,
+  // A maxed card of any rarity displays as this level, so it gets the gold text.
+  const MAX_CARD_LEVEL = 16;
+
+  const escapeHtml = (text) => String(text).replace(/[&<>"']/g,
     (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 
   form.addEventListener("submit", async (event) => {
@@ -117,14 +121,14 @@
       try { data = JSON.parse(body); } catch (parseError) { /* not JSON */ }
 
       if (!response.ok || data === null) {
-        out.innerHTML = '<p class="err">' + escape(explain(response, data, body)) + "</p>";
+        out.innerHTML = '<p class="err">' + escapeHtml(explain(response, data, body)) + "</p>";
         return;
       }
       render(data);
     } catch (error) {
       // Only a genuine network failure reaches here.
       out.innerHTML = '<p class="err">Couldn\'t reach the server: '
-        + escape(error.message) + "</p>";
+        + escapeHtml(error.message) + "</p>";
     } finally {
       button.disabled = false;
     }
@@ -146,22 +150,22 @@
     }
 
     const cards = data.cards.map((card) => `
-      <div class="card${card.level === 16 ? " maxed" : ""}">
-        <img src="${escape(card.icon)}" loading="lazy"
-             alt="${escape(card.form ? card.form + " " + card.name : card.name)}">
+      <div class="card${card.level === MAX_CARD_LEVEL ? " maxed" : ""}">
+        <img src="${escapeHtml(card.icon)}" loading="lazy"
+             alt="${escapeHtml(card.form ? card.form + " " + card.name : card.name)}">
         <span>${card.level}</span>
       </div>`).join("");
 
     out.innerHTML = `
       <div class="headline">
-        <strong>${escape(data.player.name)}</strong>
-        <span class="score">${data.score}<span style="opacity:.5">/${data.max_score}</span></span>
+        <strong>${escapeHtml(data.player.name)}</strong>
+        <span class="score">${data.score}<span class="of">/${data.max_score}</span></span>
       </div>
-      <p class="from">from rank ${data.source.rank} — ${escape(data.source.name)}</p>
+      <p class="from">from rank ${data.source.rank} — ${escapeHtml(data.source.name)}</p>
       <div class="deck">${cards}</div>
-      <a class="copy" href="${escape(data.copy_link)}">Copy deck in game</a>
-      <p class="foot">Top ${data.players} of Path of Legends season ${escape(data.season)},
-         snapshot taken ${escape(data.generated_at.slice(0, 10))}.</p>`;
+      <a class="copy" href="${escapeHtml(data.copy_link)}">Copy deck in game</a>
+      <p class="foot">Top ${data.players} of Path of Legends season ${escapeHtml(data.season)},
+         snapshot taken ${escapeHtml(data.generated_at.slice(0, 10))}.</p>`;
   }
 </script>
 </body>
